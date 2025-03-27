@@ -2,22 +2,14 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from gtts import gTTS
-from transformers import pipeline
 import pandas as pd
+from transformers import MarianMTModel, MarianTokenizer
 import os
-import nltk
+import IPython.display as ipd
 
-# Ensure the punkt tokenizer is downloaded
-nltk.download('punkt')
+# ===================== Helper Functions ===================== #
 
-# ✅ Simple tokenizer using NLTK
-def simple_sent_tokenize(text):
-    return nltk.tokenize.sent_tokenize(text)
-
-# ✅ Load translation pipeline (using Hugging Face's translation pipeline directly)
-translator = pipeline("translation", model="Helsinki-NLP/opus-mt-en-hi")
-
-# ✅ Fetch news articles
+# Fetch the latest company-related news
 @st.cache_data
 def fetch_news(company_name):
     SEARCH_URL = f"https://www.bing.com/news/search?q={company_name}+({'+OR+'.join(['site:indianexpress.com', 'site:businessinsider.com', 'site:financialexpress.com', 'site:firstpost.com'])})&count=100"
@@ -50,54 +42,26 @@ def fetch_news(company_name):
             pass
     return pd.DataFrame(data)
 
-# ✅ Summarize content
-def summarize_content(content):
-    chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
-    summaries = []
-    for chunk in chunks:
-        summaries.append(chunk[:160])  # Basic summary (first 160 chars)
-    return " ".join(summaries)
+# ===================== Translation and TTS ===================== #
 
-def generate_summaries(df):
-    df["Summary"] = df["Content"].apply(summarize_content)
-    return df
+# Load the translation model and tokenizer
+model_name = "Helsinki-NLP/opus-mt-en-hi"
+model = MarianMTModel.from_pretrained(model_name)
+tokenizer = MarianTokenizer.from_pretrained(model_name)
 
-# ✅ Sentiment analysis using transformer-based model
-def analyze_sentiment(text):
-    sentiment_analyzer = pipeline('sentiment-analysis')
-    result = sentiment_analyzer(text[:512])[0]
-    return result['label']
+# Translate function
+def translate_text(text):
+    encoded_text = tokenizer.encode(text, return_tensors="pt", padding=True, truncation=True)
+    translated = model.generate(encoded_text, max_length=512, num_beams=4, early_stopping=True)
+    translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
+    return translated_text
 
-def generate_sentiments(df):
-    df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
-    return df
-
-# ✅ Combine summaries and translate them to Hindi
-def generate_hindi_audio(df):
-    # Combine all summaries
-    combined_summary_en = " ".join(df["Summary"].tolist())
-    
-    # Split into ~500 character chunks
-    sentences = simple_sent_tokenize(combined_summary_en)
-    chunks, current = [], []
-    for sentence in sentences:
-        if len(" ".join(current + [sentence])) <= 500:
-            current.append(sentence)
-        else:
-            chunks.append(" ".join(current))
-            current = [sentence]
-    if current:
-        chunks.append(" ".join(current))
-
-    # Translate to Hindi using Hugging Face's model
-    translated_chunks = [translator(chunk)[0]['translation_text'] for chunk in chunks]
-    translated_summary_hi = " ".join(translated_chunks)
-
-    # Generate Hindi TTS
-    tts = gTTS(text=translated_summary_hi, lang='hi', slow=False)
-    tts.save("summary_hi.mp3")
-
-    return "summary_hi.mp3"
+# Generate Hindi TTS from translated text
+def generate_hindi_audio(text, output_file="summary_hi.mp3"):
+    translated_text = translate_text(text)
+    tts = gTTS(text=translated_text, lang='hi', slow=False)
+    tts.save(output_file)
+    return output_file
 
 # ===================== Streamlit UI ===================== #
 
@@ -113,19 +77,17 @@ if st.button("Analyze"):
     if df.empty:
         st.error("No articles found.")
     else:
-        # Summarize content and analyze sentiment
-        df = generate_summaries(df)
-        df = generate_sentiments(df)
+        # Display the dataframe
+        st.write("✅ Articles Found!")
+        st.dataframe(df[["Title", "Link", "Source", "Date"]])
 
-        st.write("✅ Summarization and Sentiment Analysis Done!")
-        st.dataframe(df[["Title", "Summary", "Sentiment"]])
-
-        sentiment_counts = df["Sentiment"].value_counts()
-        st.bar_chart(sentiment_counts)
+        # Combine summaries of all articles
+        combined_summary = " ".join(df["Content"].tolist())
 
         # Generate Hindi audio for summaries
-        audio_file = generate_hindi_audio(df)
+        output_file = generate_hindi_audio(combined_summary)
 
         # Provide Hindi audio output
-        if os.path.exists(audio_file):
-            st.audio(audio_file, format="audio/mp3")
+        if os.path.exists(output_file):
+            st.audio(output_file, format="audio/mp3")
+
