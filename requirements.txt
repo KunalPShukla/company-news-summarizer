@@ -1,5 +1,3 @@
---upgrade
---no-cache-dir
 streamlit==1.44.0
 beautifulsoup4==4.13.3
 requests==2.32.3
