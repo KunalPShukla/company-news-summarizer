@@ -5,12 +5,12 @@ from gtts import gTTS
 import pandas as pd
 import re
 import os
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
+from transformers import pipeline
 
 # ===================== Custom Sentiment Analysis ===================== #
 
 # Load pre-trained transformer sentiment analysis model
-sentiment_analyzer = pipeline('sentiment-analysis')
+sentiment_analyzer = pipeline('sentiment-analysis', model="distilbert-base-uncased-finetuned-sst-2-english")
 
 # Load Facebook BART model for summarization
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
@@ -27,7 +27,7 @@ def fetch_news(company_name):
     articles = soup.find_all('a', {'class': 'title'})
     data = []
 
-    # No try-except block now, so errors will raise
+    # Removed try-except block, errors will raise here
     for i, article in enumerate(articles[:10]):
         title = article.text.strip()
         link = article['href']
