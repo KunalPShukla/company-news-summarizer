@@ -5,12 +5,15 @@ from gtts import gTTS
 import pandas as pd
 import re
 import os
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 
 # ===================== Custom Sentiment Analysis ===================== #
 
 # Load pre-trained transformer sentiment analysis model
 sentiment_analyzer = pipeline('sentiment-analysis')
+
+# Load Facebook BART model for summarization
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 # ===================== Helper Functions ===================== #
 
@@ -24,34 +27,29 @@ def fetch_news(company_name):
     articles = soup.find_all('a', {'class': 'title'})
     data = []
 
+    # No try-except block now, so errors will raise
     for i, article in enumerate(articles[:10]):
         title = article.text.strip()
         link = article['href']
-        try:
-            article_page = requests.get(link, headers=HEADERS, timeout=5)
-            soup = BeautifulSoup(article_page.text, 'html.parser')
-            paragraphs = soup.find_all('p')
-            content = ' '.join([p.get_text() for p in paragraphs])
-            if content:
-                source = soup.find('meta', {'property': 'og:site_name'}) or {}
-                date = soup.find('meta', {'property': 'article:published_time'}) or {}
-                data.append({
-                    'Title': title,
-                    'Link': link,
-                    'Content': content,
-                    'Source': source.get('content', 'Unknown'),
-                    'Date': date.get('content', 'Unknown')
-                })
-        except Exception:
-            pass
+        article_page = requests.get(link, headers=HEADERS, timeout=5)
+        soup = BeautifulSoup(article_page.text, 'html.parser')
+        paragraphs = soup.find_all('p')
+        content = ' '.join([p.get_text() for p in paragraphs])
+        if content:
+            source = soup.find('meta', {'property': 'og:site_name'}) or {}
+            date = soup.find('meta', {'property': 'article:published_time'}) or {}
+            data.append({
+                'Title': title,
+                'Link': link,
+                'Content': content,
+                'Source': source.get('content', 'Unknown'),
+                'Date': date.get('content', 'Unknown')
+            })
     return pd.DataFrame(data)
 
 def summarize_content(content):
-    chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
-    summaries = []
-    for chunk in chunks:
-        summaries.append(chunk[:160])  # For simplicity, using a basic summary (first 160 chars)
-    return " ".join(summaries)
+    # Use the Facebook BART model for summarization
+    return summarizer(content, max_length=200, min_length=50, do_sample=False)[0]['summary_text']
 
 def generate_summaries(df):
     df["Summary"] = df["Content"].apply(summarize_content)
@@ -59,14 +57,17 @@ def generate_summaries(df):
 
 def analyze_sentiment(text):
     try:
-        result = sentiment_analyzer(text[:512])[0]
+        result = sentiment_analyzer(text)[0]
         return result['label']
     except Exception as e:
         print(f"Error during sentiment analysis: {e}")
         return "neutral"
 
 def generate_sentiments(df):
-    df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
+    # Analyze sentiment on the full combined summary
+    combined_summary = " ".join(df["Summary"].tolist())
+    sentiment = analyze_sentiment(combined_summary)
+    df["Sentiment"] = sentiment
     return df
 
 def simple_sent_tokenize(text):
@@ -84,9 +85,9 @@ def generate_hindi_audio(text, output_file="summary_hi.mp3"):
     if current:
         chunks.append(" ".join(current))
 
-    # Using gTTS to generate audio in Hindi
+    # Using gTTS to generate audio in Hindi (lang='hi')
     hindi_text = " ".join(chunks)
-    tts = gTTS(text=hindi_text, lang='hi', slow=False)
+    tts = gTTS(text=hindi_text, lang='hi', slow=False)  # Set language to 'hi' for Hindi
     tts.save(output_file)
 
 # ===================== Streamlit UI ===================== #
