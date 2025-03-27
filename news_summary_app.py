@@ -9,7 +9,7 @@ from transformers import pipeline
 
 # ===================== Custom Sentiment Analysis ===================== #
 
-# Load pre-trained transformer sentiment analysis model
+# Load pre-trained transformer sentiment analysis model with an explicit model path
 sentiment_analyzer = pipeline('sentiment-analysis', model="distilbert-base-uncased-finetuned-sst-2-english")
 
 # Load Facebook BART model for summarization
