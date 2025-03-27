@@ -2,12 +2,13 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from gtts import gTTS
 import pandas as pd
 import torch
 import os
 import re
+
 
 # Use a more appropriate model for news summarization
 summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
@@ -46,6 +47,7 @@ def clean_text(text):
     text = re.sub(r"[“”‘’\"'`â]", '', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
+
 
 def summarize_content(content):
     cleaned = clean_text(content)
