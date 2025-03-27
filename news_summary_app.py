@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from gtts import gTTS
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import pandas as pd
 import os
 import nltk
@@ -14,8 +14,10 @@ nltk.download('punkt')
 def simple_sent_tokenize(text):
     return nltk.tokenize.sent_tokenize(text)
 
-# ✅ Load translation model
-translator = pipeline("translation_en_to_hi", model="Helsinki-NLP/opus-mt-en-hi")
+# ✅ Load translation model and tokenizer
+tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
+model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
+translator = pipeline("translation", model=model, tokenizer=tokenizer)
 
 # ✅ Fetch news articles
 @st.cache_data
@@ -101,12 +103,12 @@ def generate_hindi_audio(df):
 
 # ===================== Streamlit UI ===================== #
 
-st.title("Company News Sentiment Analyzer (Hindi TTS)")
+st.title("📈 Company News Sentiment Analyzer (Hindi TTS)")
 
 company = st.text_input("Enter Company Name", value="Tesla")
 
 if st.button("Analyze"):
-    st.write(f"Fetching and analyzing news for **{company}**...")
+    st.write(f"🔍 Fetching and analyzing news for **{company}**...")
 
     # Fetch news
     df = fetch_news(company)
@@ -117,7 +119,7 @@ if st.button("Analyze"):
         df = generate_summaries(df)
         df = generate_sentiments(df)
 
-        st.write("Summarization and Sentiment Analysis Done!")
+        st.write("✅ Summarization and Sentiment Analysis Done!")
         st.dataframe(df[["Title", "Summary", "Sentiment"]])
 
         sentiment_counts = df["Sentiment"].value_counts()
