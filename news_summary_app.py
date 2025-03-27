@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
 from gtts import gTTS
 import pandas as pd
 import torch
@@ -42,20 +42,17 @@ def fetch_news(company_name):
             pass
     return pd.DataFrame(data)
 
-def clean_text(text):
-    text = re.sub(r'[“”‘’"\'`â]', '', text)
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
-
 summarizer = pipeline("summarization", model="philschmid/bart-large-cnn-samsum")
 
 def summarize_content(content):
-    cleaned = clean_text(content)
-    chunks = [cleaned[i:i+3000] for i in range(0, len(cleaned), 3000)]
+    chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
     summaries = []
     for chunk in chunks:
-        summary = summarizer(chunk, max_length=160, min_length=70, do_sample=False)[0]['summary_text']
-        summaries.append(summary)
+        try:
+            summary = summarizer(chunk, max_length=160, min_length=70, do_sample=False)[0]['summary_text']
+            summaries.append(summary)
+        except:
+            continue
     return " ".join(summaries)
 
 def generate_summaries(df):
@@ -68,7 +65,11 @@ model = AutoModelForSequenceClassification.from_pretrained(model_name)
 sentiment_pipeline = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
 def analyze_sentiment(text):
-    return sentiment_pipeline(text[:512])[0]['label']
+    try:
+        result = sentiment_pipeline(text[:512])[0]
+        return result['label']
+    except:
+        return "neutral"
 
 def generate_sentiments(df):
     df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
@@ -98,12 +99,12 @@ def generate_hindi_audio(text, output_file="summary_hi.mp3"):
 
 # ===================== Streamlit UI ===================== #
 
-st.title("\ud83d\udcc8 Company News Sentiment Analyzer (Hindi TTS)")
+st.title("📈 Company News Sentiment Analyzer (Hindi TTS)")
 
 company = st.text_input("Enter Company Name", value="Tesla")
 
 if st.button("Analyze"):
-    st.write(f"\ud83d\udd0d Fetching and analyzing news for **{company}**...")
+    st.write(f"🔍 Fetching and analyzing news for **{company}**...")
 
     df = fetch_news(company)
     if df.empty:
@@ -112,7 +113,7 @@ if st.button("Analyze"):
         df = generate_summaries(df)
         df = generate_sentiments(df)
 
-        st.write("\u2705 Summarization and Sentiment Analysis Done!")
+        st.write("✅ Summarization and Sentiment Analysis Done!")
         st.dataframe(df[["Title", "Summary", "Sentiment"]])
 
         sentiment_counts = df["Sentiment"].value_counts()
