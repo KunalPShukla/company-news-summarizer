@@ -2,19 +2,22 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from gtts import gTTS
+from transformers import pipeline
 import pandas as pd
 import os
-from transformers import pipeline
 import nltk
 
-# Download required NLTK lexicon for Vader sentiment analysis
-nltk.download('vader_lexicon')
+# Ensure the punkt tokenizer is downloaded
+nltk.download('punkt')
 
-# Load pre-trained transformer sentiment analysis model
-sentiment_analyzer = pipeline('sentiment-analysis')
+# ✅ Simple tokenizer using NLTK
+def simple_sent_tokenize(text):
+    return nltk.tokenize.sent_tokenize(text)
 
-# ===================== Helper Functions ===================== #
+# ✅ Load translation model
+translator = pipeline("translation_en_to_hi", model="Helsinki-NLP/opus-mt-en-hi")
 
+# ✅ Fetch news articles
 @st.cache_data
 def fetch_news(company_name):
     SEARCH_URL = f"https://www.bing.com/news/search?q={company_name}+({'+OR+'.join(['site:indianexpress.com', 'site:businessinsider.com', 'site:financialexpress.com', 'site:firstpost.com'])})&count=100"
@@ -47,58 +50,63 @@ def fetch_news(company_name):
             pass
     return pd.DataFrame(data)
 
+# ✅ Summarize content
 def summarize_content(content):
     chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
     summaries = []
     for chunk in chunks:
-        summaries.append(chunk[:160])  # For simplicity, using a basic summary (first 160 chars)
+        summaries.append(chunk[:160])  # Basic summary (first 160 chars)
     return " ".join(summaries)
 
 def generate_summaries(df):
     df["Summary"] = df["Content"].apply(summarize_content)
     return df
 
+# ✅ Sentiment analysis using transformer-based model
 def analyze_sentiment(text):
-    try:
-        result = sentiment_analyzer(text[:512])[0]
-        return result['label']
-    except Exception as e:
-        print(f"Error during sentiment analysis: {e}")
-        return "neutral"
+    sentiment_analyzer = pipeline('sentiment-analysis')
+    result = sentiment_analyzer(text[:512])[0]
+    return result['label']
 
 def generate_sentiments(df):
     df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
     return df
 
-def simple_sent_tokenize(text):
-    sentences = text.split(". ")
-    return [s.strip() for s in sentences if s]
-
-def generate_hindi_audio(text, output_file="summary_hi.mp3"):
-    # Ensure the text passed is valid Hindi
-    if not isinstance(text, str):
-        raise ValueError("The input text should be a string.")
-
-    # Using gTTS to generate audio in Hindi (ensure 'hi' for Hindi language is used)
-    tts = gTTS(text=text, lang='hi', slow=False)
+# ✅ Combine summaries and translate them to Hindi
+def generate_hindi_audio(df):
+    # Combine all summaries
+    combined_summary_en = " ".join(df["Summary"].tolist())
     
-    # Save the audio file
-    tts.save(output_file)
-    
-    # Clear gTTS cache to avoid English defaulting
-    if os.path.exists(output_file):
-        print(f"Successfully saved audio in Hindi at {output_file}")
-    else:
-        raise Exception("Failed to save the audio file.")
+    # Split into ~500 character chunks
+    sentences = simple_sent_tokenize(combined_summary_en)
+    chunks, current = [], []
+    for sentence in sentences:
+        if len(" ".join(current + [sentence])) <= 500:
+            current.append(sentence)
+        else:
+            chunks.append(" ".join(current))
+            current = [sentence]
+    if current:
+        chunks.append(" ".join(current))
+
+    # Translate to Hindi using Helsinki-NLP's model
+    translated_chunks = [translator(chunk)[0]['translation_text'] for chunk in chunks]
+    translated_summary_hi = " ".join(translated_chunks)
+
+    # Generate Hindi TTS
+    tts = gTTS(text=translated_summary_hi, lang='hi', slow=False)
+    tts.save("summary_hi.mp3")
+
+    return "summary_hi.mp3"
 
 # ===================== Streamlit UI ===================== #
 
-st.title("📈 Company News Sentiment Analyzer (Hindi TTS)")
+st.title("Company News Sentiment Analyzer (Hindi TTS)")
 
 company = st.text_input("Enter Company Name", value="Tesla")
 
 if st.button("Analyze"):
-    st.write(f"🔍 Fetching and analyzing news for **{company}**...")
+    st.write(f"Fetching and analyzing news for **{company}**...")
 
     # Fetch news
     df = fetch_news(company)
@@ -109,16 +117,15 @@ if st.button("Analyze"):
         df = generate_summaries(df)
         df = generate_sentiments(df)
 
-        st.write("✅ Summarization and Sentiment Analysis Done!")
+        st.write("Summarization and Sentiment Analysis Done!")
         st.dataframe(df[["Title", "Summary", "Sentiment"]])
 
         sentiment_counts = df["Sentiment"].value_counts()
         st.bar_chart(sentiment_counts)
 
         # Generate Hindi audio for summaries
-        combined_summary = " ".join(df["Summary"].tolist())
-        generate_hindi_audio(combined_summary)
+        audio_file = generate_hindi_audio(df)
 
         # Provide Hindi audio output
-        if os.path.exists("summary_hi.mp3"):
-            st.audio("summary_hi.mp3", format="audio/mp3")
+        if os.path.exists(audio_file):
+            st.audio(audio_file, format="audio/mp3")
