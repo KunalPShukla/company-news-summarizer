@@ -1,0 +1,12 @@
+streamlit
+beautifulsoup4
+requests
+transformers
+torch==2.0.1
+scikit-learn
+gtts
+matplotlib
+pandas
+langdetect
+sentencepiece
+sacremoses
