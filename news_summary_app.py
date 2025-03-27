@@ -5,48 +5,12 @@ from gtts import gTTS
 import pandas as pd
 import re
 import os
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from transformers import pipeline
 
 # ===================== Custom Sentiment Analysis ===================== #
 
-# Extended custom words for sentiment analysis
-custom_words = {
-    'crushes': 10,
-    'beats': 5,
-    'misses': -5,
-    'trouble': -10,
-    'falls': -100,
-    'amazing': 20,
-    'outstanding': 25,
-    'horrible': -20,
-    'worst': -25,
-    'fantastic': 30,
-    'love': 15,
-    'hate': -15,
-    'good': 10,
-    'bad': -10,
-    'great': 18,
-    'terrible': -18,
-    'incredible': 25,
-    'excellent': 20,
-    'poor': -15,
-    'joy': 30,
-    'sad': -20,
-    'exciting': 15,
-    'disappointing': -30,
-    'beautiful': 18,
-    'depressed': -30,
-    'happy': 10,
-    'angry': -10,
-    'decent': 5,
-    'awful': -15,
-    'inspiring': 20,
-    'miserable': -25,
-}
-
-# Instantiate the sentiment intensity analyzer
-vader = SentimentIntensityAnalyzer()
-vader.lexicon.update(custom_words)
+# Load pre-trained transformer sentiment analysis model
+sentiment_analyzer = pipeline('sentiment-analysis')
 
 # ===================== Helper Functions ===================== #
 
@@ -95,14 +59,10 @@ def generate_summaries(df):
 
 def analyze_sentiment(text):
     try:
-        result = vader.polarity_scores(text)
-        if result['compound'] >= 0.05:
-            return 'positive'
-        elif result['compound'] <= -0.05:
-            return 'negative'
-        else:
-            return 'neutral'
-    except:
+        result = sentiment_analyzer(text[:512])[0]
+        return result['label']
+    except Exception as e:
+        print(f"Error during sentiment analysis: {e}")
         return "neutral"
 
 def generate_sentiments(df):
@@ -131,12 +91,12 @@ def generate_hindi_audio(text, output_file="summary_hi.mp3"):
 
 # ===================== Streamlit UI ===================== #
 
-st.title(" Company News Sentiment Analyzer (Hindi TTS)")
+st.title("📈 Company News Sentiment Analyzer (Hindi TTS)")
 
 company = st.text_input("Enter Company Name", value="Tesla")
 
 if st.button("Analyze"):
-    st.write(f" Fetching and analyzing news for **{company}**...")
+    st.write(f"🔍 Fetching and analyzing news for **{company}**...")
 
     # Fetch news
     df = fetch_news(company)
@@ -147,7 +107,7 @@ if st.button("Analyze"):
         df = generate_summaries(df)
         df = generate_sentiments(df)
 
-        st.write(" Summarization and Sentiment Analysis Done!")
+        st.write("✅ Summarization and Sentiment Analysis Done!")
         st.dataframe(df[["Title", "Summary", "Sentiment"]])
 
         sentiment_counts = df["Sentiment"].value_counts()
