@@ -90,7 +90,7 @@ def generate_hindi_audio(text, output_file="summary_hi.mp3"):
 
     # Using gTTS to generate audio in Hindi
     hindi_text = " ".join(chunks)
-    tts = gTTS(text=hindi_text, lang='hi', slow=False)
+    tts = gTTS(text=hindi_text, lang='hi', slow=False)  # Ensure 'hi' for Hindi language
     tts.save(output_file)
 
 # ===================== Streamlit UI ===================== #
