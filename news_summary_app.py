@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 from gtts import gTTS
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from transformers import pipeline
 import pandas as pd
 import os
 import nltk
@@ -14,10 +14,8 @@ nltk.download('punkt')
 def simple_sent_tokenize(text):
     return nltk.tokenize.sent_tokenize(text)
 
-# ✅ Load translation model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
-model = AutoModelForSeq2SeqLM.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
-translator = pipeline("translation", model=model, tokenizer=tokenizer)
+# ✅ Load translation pipeline (using Hugging Face's translation pipeline directly)
+translator = pipeline("translation", model="Helsinki-NLP/opus-mt-en-hi")
 
 # ✅ Fetch news articles
 @st.cache_data
@@ -91,7 +89,7 @@ def generate_hindi_audio(df):
     if current:
         chunks.append(" ".join(current))
 
-    # Translate to Hindi using Helsinki-NLP's model
+    # Translate to Hindi using Hugging Face's model
     translated_chunks = [translator(chunk)[0]['translation_text'] for chunk in chunks]
     translated_summary_hi = " ".join(translated_chunks)
 
