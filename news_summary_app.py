@@ -43,7 +43,7 @@ def fetch_news(company_name):
     return pd.DataFrame(data)
 
 def clean_text(text):
-    text = re.sub(r"[“”‘’"'`â]", '', text)
+    text = re.sub(r"[“”‘’\"'`â]", '', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
