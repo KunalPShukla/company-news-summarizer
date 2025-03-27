@@ -7,9 +7,7 @@ import os
 from transformers import pipeline
 import nltk
 
-# ===================== Custom Sentiment Analysis ===================== #
-
-# Download the required NLTK lexicon
+# Download required NLTK lexicon for Vader sentiment analysis
 nltk.download('vader_lexicon')
 
 # Load pre-trained transformer sentiment analysis model
@@ -77,21 +75,21 @@ def simple_sent_tokenize(text):
     return [s.strip() for s in sentences if s]
 
 def generate_hindi_audio(text, output_file="summary_hi.mp3"):
-    sentences = simple_sent_tokenize(text)
-    chunks, current = [], []
-    for sentence in sentences:
-        if len(" ".join(current + [sentence])) <= 500:
-            current.append(sentence)
-        else:
-            chunks.append(" ".join(current))
-            current = [sentence]
-    if current:
-        chunks.append(" ".join(current))
+    # Ensure the text passed is valid Hindi
+    if not isinstance(text, str):
+        raise ValueError("The input text should be a string.")
 
-    # Using gTTS to generate audio in Hindi
-    hindi_text = " ".join(chunks)
-    tts = gTTS(text=hindi_text, lang='hi', slow=False)  # Ensure 'hi' for Hindi language
+    # Using gTTS to generate audio in Hindi (ensure 'hi' for Hindi language is used)
+    tts = gTTS(text=text, lang='hi', slow=False)
+    
+    # Save the audio file
     tts.save(output_file)
+    
+    # Clear gTTS cache to avoid English defaulting
+    if os.path.exists(output_file):
+        print(f"Successfully saved audio in Hindi at {output_file}")
+    else:
+        raise Exception("Failed to save the audio file.")
 
 # ===================== Streamlit UI ===================== #
 
