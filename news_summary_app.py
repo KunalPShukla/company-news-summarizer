@@ -1,12 +1,11 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
 from gtts import gTTS
 import pandas as pd
-import torch
 import os
 import re
+from textblob import TextBlob  # Using TextBlob for simple sentiment
 
 # ===================== Helper Functions ===================== #
 
@@ -20,7 +19,7 @@ def fetch_news(company_name):
     articles = soup.find_all('a', {'class': 'title'})
     data = []
 
-    for i, article in enumerate(articles[:10]):
+    for article in articles[:10]:
         title = article.text.strip()
         link = article['href']
         try:
@@ -42,33 +41,22 @@ def fetch_news(company_name):
             pass
     return pd.DataFrame(data)
 
-summarizer = pipeline("summarization", model="philschmid/bart-large-cnn-samsum")
-
 def summarize_content(content):
-    chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
-    summaries = []
-    for chunk in chunks:
-        try:
-            summary = summarizer(chunk, max_length=160, min_length=70, do_sample=False)[0]['summary_text']
-            summaries.append(summary)
-        except:
-            continue
-    return " ".join(summaries)
+    sentences = content.split('. ')
+    return '. '.join(sentences[:3])  # Basic summary: first 3 sentences
 
 def generate_summaries(df):
     df["Summary"] = df["Content"].apply(summarize_content)
     return df
 
-model_name = "ProsusAI/finbert"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name)
-sentiment_pipeline = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
-
 def analyze_sentiment(text):
-    try:
-        result = sentiment_pipeline(text[:512])[0]
-        return result['label']
-    except:
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    if polarity > 0.1:
+        return "positive"
+    elif polarity < -0.1:
+        return "negative"
+    else:
         return "neutral"
 
 def generate_sentiments(df):
@@ -78,23 +66,8 @@ def generate_sentiments(df):
 def simple_sent_tokenize(text):
     return re.split(r'(?<=[.?!])\s+', text.strip())
 
-translator = pipeline("translation_en_to_hi", model="Helsinki-NLP/opus-mt-en-hi")
-
 def generate_hindi_audio(text, output_file="summary_hi.mp3"):
-    sentences = simple_sent_tokenize(text)
-    chunks, current = [], []
-    for sentence in sentences:
-        if len(" ".join(current + [sentence])) <= 500:
-            current.append(sentence)
-        else:
-            chunks.append(" ".join(current))
-            current = [sentence]
-    if current:
-        chunks.append(" ".join(current))
-
-    translated_chunks = [translator(chunk)[0]['translation_text'] for chunk in chunks]
-    hindi_text = " ".join(translated_chunks)
-    tts = gTTS(text=hindi_text, lang='hi', slow=False)
+    tts = gTTS(text=text, lang='hi', slow=False)
     tts.save(output_file)
 
 # ===================== Streamlit UI ===================== #
@@ -106,21 +79,4 @@ company = st.text_input("Enter Company Name", value="Tesla")
 if st.button("Analyze"):
     st.write(f"🔍 Fetching and analyzing news for **{company}**...")
 
-    df = fetch_news(company)
-    if df.empty:
-        st.error("No articles found.")
-    else:
-        df = generate_summaries(df)
-        df = generate_sentiments(df)
-
-        st.write("✅ Summarization and Sentiment Analysis Done!")
-        st.dataframe(df[["Title", "Summary", "Sentiment"]])
-
-        sentiment_counts = df["Sentiment"].value_counts()
-        st.bar_chart(sentiment_counts)
-
-        combined_summary = " ".join(df["Summary"].tolist())
-        generate_hindi_audio(combined_summary)
-
-        if os.path.exists("summary_hi.mp3"):
-            st.audio("summary_hi.mp3", format="audio/mp3")
+    df = fetch_news_
