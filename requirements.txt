@@ -2,7 +2,7 @@ streamlit==1.44.0
 requests==2.32.3
 beautifulsoup4==4.13.3
 gtts==2.5.4
-pandas==2.2.1
 transformers==4.37.2
+pandas==2.2.1
 torch==2.2.1
 nltk==3.7
