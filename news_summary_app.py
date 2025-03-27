@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -9,9 +8,7 @@ import torch
 import os
 import re
 
-
-# Use a more appropriate model for news summarization
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+# ===================== Helper Functions ===================== #
 
 @st.cache_data
 def fetch_news(company_name):
@@ -26,21 +23,23 @@ def fetch_news(company_name):
     for i, article in enumerate(articles[:10]):
         title = article.text.strip()
         link = article['href']
-        article_page = requests.get(link, headers=HEADERS, timeout=5)
-        soup = BeautifulSoup(article_page.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        content = ' '.join([p.get_text() for p in paragraphs])
-        if content:
-            source = soup.find('meta', {'property': 'og:site_name'}) or {}
-            date = soup.find('meta', {'property': 'article:published_time'}) or {}
-            data.append({
-                'Title': title,
-                'Link': link,
-                'Content': content,
-                'Source': source.get('content', 'Unknown'),
-                'Date': date.get('content', 'Unknown')
-            })
-
+        try:
+            article_page = requests.get(link, headers=HEADERS, timeout=5)
+            soup = BeautifulSoup(article_page.text, 'html.parser')
+            paragraphs = soup.find_all('p')
+            content = ' '.join([p.get_text() for p in paragraphs])
+            if content:
+                source = soup.find('meta', {'property': 'og:site_name'}) or {}
+                date = soup.find('meta', {'property': 'article:published_time'}) or {}
+                data.append({
+                    'Title': title,
+                    'Link': link,
+                    'Content': content,
+                    'Source': source.get('content', 'Unknown'),
+                    'Date': date.get('content', 'Unknown')
+                })
+        except Exception:
+            pass
     return pd.DataFrame(data)
 
 def clean_text(text):
@@ -48,26 +47,28 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
+summarizer = pipeline("summarization", model="philschmid/bart-large-cnn-samsum")
 
 def summarize_content(content):
     cleaned = clean_text(content)
     chunks = [cleaned[i:i+3000] for i in range(0, len(cleaned), 3000)]
-    summaries = [summarizer(chunk, max_length=160, min_length=70, do_sample=False)[0]['summary_text'] for chunk in chunks]
+    summaries = []
+    for chunk in chunks:
+        summary = summarizer(chunk, max_length=160, min_length=70, do_sample=False)[0]['summary_text']
+        summaries.append(summary)
     return " ".join(summaries)
 
 def generate_summaries(df):
     df["Summary"] = df["Content"].apply(summarize_content)
     return df
 
-# FinBERT for sentiment analysis
 model_name = "ProsusAI/finbert"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSequenceClassification.from_pretrained(model_name)
 sentiment_pipeline = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
 def analyze_sentiment(text):
-    result = sentiment_pipeline(text[:512])[0]
-    return result['label']
+    return sentiment_pipeline(text[:512])[0]['label']
 
 def generate_sentiments(df):
     df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
@@ -97,12 +98,12 @@ def generate_hindi_audio(text, output_file="summary_hi.mp3"):
 
 # ===================== Streamlit UI ===================== #
 
-st.title("📈 Company News Sentiment Analyzer (Hindi TTS)")
+st.title("\ud83d\udcc8 Company News Sentiment Analyzer (Hindi TTS)")
 
 company = st.text_input("Enter Company Name", value="Tesla")
 
 if st.button("Analyze"):
-    st.write(f"🔍 Fetching and analyzing news for **{company}**...")
+    st.write(f"\ud83d\udd0d Fetching and analyzing news for **{company}**...")
 
     df = fetch_news(company)
     if df.empty:
@@ -111,7 +112,7 @@ if st.button("Analyze"):
         df = generate_summaries(df)
         df = generate_sentiments(df)
 
-        st.write("✅ Summarization and Sentiment Analysis Done!")
+        st.write("\u2705 Summarization and Sentiment Analysis Done!")
         st.dataframe(df[["Title", "Summary", "Sentiment"]])
 
         sentiment_counts = df["Sentiment"].value_counts()
