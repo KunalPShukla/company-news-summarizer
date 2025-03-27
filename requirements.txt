@@ -2,7 +2,7 @@ streamlit
 beautifulsoup4
 requests
 transformers
-torch==2.0.1
+torch
 scikit-learn
 gtts
 matplotlib
