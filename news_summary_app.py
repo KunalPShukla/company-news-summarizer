@@ -5,8 +5,12 @@ from gtts import gTTS
 import pandas as pd
 import os
 from transformers import pipeline
+import nltk
 
 # ===================== Custom Sentiment Analysis ===================== #
+
+# Download the required NLTK lexicon
+nltk.download('vader_lexicon')
 
 # Load pre-trained transformer sentiment analysis model
 sentiment_analyzer = pipeline('sentiment-analysis')
@@ -46,7 +50,6 @@ def fetch_news(company_name):
     return pd.DataFrame(data)
 
 def summarize_content(content):
-    # Remove the use of re.split and split content based on sentence length instead
     chunks = [content[i:i+3000] for i in range(0, len(content), 3000)]
     summaries = []
     for chunk in chunks:
@@ -69,9 +72,6 @@ def generate_sentiments(df):
     df["Sentiment"] = df["Summary"].apply(analyze_sentiment)
     return df
 
-# ===================== Sentence Tokenization (without re) ===================== #
-
-# Split sentences without using re (manual sentence splitting for simplicity)
 def simple_sent_tokenize(text):
     sentences = text.split(". ")
     return [s.strip() for s in sentences if s]
